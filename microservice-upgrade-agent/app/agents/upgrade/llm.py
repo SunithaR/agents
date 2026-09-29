@@ -106,7 +106,9 @@ class ScriptedToolCallLLM:
         max_tokens: int,
         effort: str,
     ) -> FakeMessage:
-        self.calls.append({"model": model, "message_count": len(messages)})
+        self.calls.append(
+            {"model": model, "message_count": len(messages), "kickoff": messages[0]["content"]}
+        )
         if not self._turns:
             raise AssertionError(
                 f"ScriptedToolCallLLM ran out of scripted turns after {len(self.calls)} calls"

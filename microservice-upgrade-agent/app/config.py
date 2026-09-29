@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     upgrade_build_timeout_seconds: int = 900
     upgrade_startup_timeout_seconds: int = 90
     upgrade_command_timeout_seconds: int = 300
+    # Long-term memory: how many earlier completed runs against the same repo
+    # are summarized into the kickoff message (see services/upgrade_memory.py).
+    # 0 disables cross-run memory entirely.
+    upgrade_memory_max_prior_runs: int = 3
 
     @property
     def upgrade_model(self) -> str:

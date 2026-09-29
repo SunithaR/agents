@@ -5,7 +5,8 @@ import pytest
 from app.agents.base import AgentContext
 from app.agents.upgrade.agent import MicroserviceUpgradeAgent
 from app.agents.upgrade.llm import FakeMessage, FakeTextBlock, FakeToolUseBlock, ScriptedToolCallLLM
-from app.agents.upgrade.schemas import CommandResult, UpgradeInput
+from app.agents.upgrade.prompts import build_kickoff_message
+from app.agents.upgrade.schemas import CommandResult, PriorRunSummary, UpgradeInput
 from app.agents.upgrade.tools import (
     CommandNotAllowed,
     PathEscapesRepoRoot,
@@ -20,6 +21,9 @@ from app.agents.upgrade.verifier import (
     looks_like_startup_success,
     startup_command,
 )
+from app.db import SessionLocal
+from app.models.agent_run import AgentRun, AgentRunStatus
+from app.services.upgrade_memory import load_prior_runs
 
 
 # --- Path confinement -----------------------------------------------------
@@ -326,3 +330,86 @@ def test_agents_endpoint_lists_upgrade_agent(client):
     assert resp.status_code == 200
     names = [a["name"] for a in resp.json()]
     assert "microservice_upgrade" in names
+
+
+# --- Long-term memory (earlier runs against the same repo) -----------------
+
+
+def _prior_run(**overrides) -> PriorRunSummary:
+    fields = dict(
+        run_id=7, created_at="2026-09-01T10:00", target_java_version="21",
+        target_spring_framework_version="6", target_spring_boot_version="3.5",
+        approved=False, cycles_used=5, summary="Did not pass verification.",
+        last_failure="cannot find symbol: javax.persistence.Entity",
+    )
+    fields.update(overrides)
+    return PriorRunSummary(**fields)
+
+
+def test_kickoff_message_without_memory_has_no_memory_section():
+    assert "Memory from previous" not in build_kickoff_message(repo_root="/repo")
+
+
+def test_kickoff_message_includes_prior_runs():
+    message = build_kickoff_message(repo_root="/repo", prior_runs=[_prior_run()])
+    assert "Memory from previous upgrade attempts" in message
+    assert "Run #7" in message
+    assert "NOT approved" in message
+    assert "javax.persistence.Entity" in message
+
+
+@pytest.mark.asyncio
+async def test_agent_shows_prior_runs_to_model_and_records_them(tmp_path):
+    repo = _project_dir(tmp_path)
+    llm = ScriptedToolCallLLM(turns=[_report_status_turn("blocked", "stuck")])
+    agent = MicroserviceUpgradeAgent(llm=llm)
+    result = await agent.run(
+        UpgradeInput(repo_path=str(repo), prior_runs=[_prior_run(run_id=3)]), AgentContext()
+    )
+
+    assert "Run #3" in llm.calls[0]["kickoff"]
+    assert result.output["prior_run_ids"] == [3]
+
+
+def _add_run(db, *, repo_path, status=AgentRunStatus.succeeded, approved=False, agent_name="microservice_upgrade", trace=None):
+    run = AgentRun(
+        agent_name=agent_name,
+        status=status,
+        input_payload={"repo_path": repo_path, "target_java_version": "21",
+                       "target_spring_framework_version": "6", "target_spring_boot_version": "3.5"},
+        output_payload={"approved": approved, "cycles_used": 2, "summary": f"approved={approved}"},
+        trace=trace,
+    )
+    db.add(run)
+    db.commit()
+    return run
+
+
+def test_load_prior_runs_matches_repo_newest_first_and_skips_crashed_runs(tmp_path):
+    repo = tmp_path / "svc"
+    repo.mkdir()
+    failed_trace = [
+        {"type": "verification", "passed": False, "summary": "early failure"},
+        {"type": "verification", "passed": False, "summary": "COMPILE ERROR in Foo.java"},
+    ]
+    with SessionLocal() as db:
+        older = _add_run(db, repo_path=str(repo), trace=failed_trace)
+        _add_run(db, repo_path=str(tmp_path / "other"))
+        _add_run(db, repo_path=str(repo), status=AgentRunStatus.failed)
+        _add_run(db, repo_path=str(repo), agent_name="some_other_agent")
+        # Same repo spelled differently -- must still match.
+        newer = _add_run(db, repo_path=str(repo) + "/", approved=True)
+
+        prior = load_prior_runs(db, agent_name="microservice_upgrade", repo_path=str(repo), limit=5)
+
+    assert [p.run_id for p in prior] == [newer.id, older.id]
+    assert prior[0].approved is True and prior[0].last_failure is None
+    assert prior[1].last_failure == "COMPILE ERROR in Foo.java"
+
+
+def test_load_prior_runs_respects_limit(tmp_path):
+    with SessionLocal() as db:
+        for _ in range(3):
+            _add_run(db, repo_path=str(tmp_path))
+        assert len(load_prior_runs(db, agent_name="microservice_upgrade", repo_path=str(tmp_path), limit=2)) == 2
+        assert load_prior_runs(db, agent_name="microservice_upgrade", repo_path=str(tmp_path), limit=0) == []

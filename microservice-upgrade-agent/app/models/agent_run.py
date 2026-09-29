@@ -18,10 +18,10 @@ class AgentRunStatus(str, enum.Enum):
 
 
 class AgentRun(Base):
-    """Audit trail for every agent invocation on the platform. This is the
-    piece that makes the platform 'AI-native' rather than AI-bolted-on: every
-    agent call -- not just the translation agent -- is expected to persist
-    one of these, so agent behavior is inspectable and reproducible.
+    """Audit trail for every agent invocation. Every agent call is expected
+    to persist one of these, so agent behavior is inspectable and
+    reproducible. The upgrade agent also reads recent rows back as long-term
+    memory (see services/upgrade_memory.py).
     """
 
     __tablename__ = "agent_runs"
@@ -32,13 +32,13 @@ class AgentRun(Base):
 
     input_payload: Mapped[dict] = mapped_column(JSON)
     output_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    # Ordered list of {iteration, ...} dicts -- e.g. each optimizer/evaluator
-    # pass for the translation agent's evaluator-optimizer loop.
+    # Chronologically ordered event dicts -- for the upgrade agent, each tool
+    # call, model note, and verification attempt.
     trace: Mapped[list | None] = mapped_column(JSON, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Optional link back to the domain entity this run acted on, e.g.
-    # ("job", 42) for a job-description translation.
+    # Optional link back to a domain entity this run acted on, as
+    # (type, id). Unused by the upgrade agent.
     related_entity_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     related_entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

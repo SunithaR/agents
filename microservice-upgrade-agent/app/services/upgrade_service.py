@@ -1,5 +1,5 @@
 """Orchestrates a microservice-upgrade agent invocation and persists it as an
-AgentRun, same pattern as translation_service.py."""
+AgentRun."""
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -7,8 +7,10 @@ from sqlalchemy.orm import Session
 from app.agents.base import AgentContext
 from app.agents.registry import get_agent
 from app.agents.upgrade.schemas import UpgradeInput
+from app.config import settings
 from app.models.agent_run import AgentRun, AgentRunStatus
 from app.schemas.upgrade import UpgradeRequest
+from app.services.upgrade_memory import load_prior_runs
 
 
 class UpgradeAgentUnavailable(RuntimeError):
@@ -21,6 +23,19 @@ async def run_upgrade(db: Session, request: UpgradeRequest) -> AgentRun:
     if agent is None:
         raise UpgradeAgentUnavailable("microservice_upgrade agent is not registered")
 
+    # Loaded before this run's own AgentRun row exists, so it can never
+    # appear in its own memory.
+    prior_runs = (
+        load_prior_runs(
+            db,
+            agent_name=agent.name,
+            repo_path=request.repo_path,
+            limit=settings.upgrade_memory_max_prior_runs,
+        )
+        if request.use_memory
+        else []
+    )
+
     input_data = UpgradeInput(
         repo_path=request.repo_path,
         target_java_version=request.target_java_version,
@@ -30,6 +45,7 @@ async def run_upgrade(db: Session, request: UpgradeRequest) -> AgentRun:
         max_tool_turns_per_cycle=request.max_tool_turns_per_cycle,
         build_timeout_seconds=request.build_timeout_seconds,
         startup_timeout_seconds=request.startup_timeout_seconds,
+        prior_runs=prior_runs,
     )
 
     run = AgentRun(

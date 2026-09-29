@@ -1,7 +1,25 @@
 """Internal dataclasses for the microservice-upgrade agent. Separate from
-app/schemas/upgrade.py (the API-facing Pydantic models), same split as the
-translation agent."""
+app/schemas/upgrade.py (the API-facing Pydantic models)."""
 from dataclasses import dataclass, field
+
+
+@dataclass
+class PriorRunSummary:
+    """A condensed earlier run against the same repo -- the agent's long-term
+    memory. Built from the AgentRun audit trail by
+    services/upgrade_memory.py and shown to the model as hints in the
+    kickoff message."""
+
+    run_id: int
+    created_at: str
+    target_java_version: str
+    target_spring_framework_version: str
+    target_spring_boot_version: str
+    approved: bool
+    cycles_used: int
+    summary: str
+    # Tail of the last failed verification's output, if the run wasn't approved.
+    last_failure: str | None = None
 
 
 @dataclass
@@ -14,6 +32,8 @@ class UpgradeInput:
     max_tool_turns_per_cycle: int | None = None
     build_timeout_seconds: int | None = None
     startup_timeout_seconds: int | None = None
+    # Newest first. Empty means no memory (first run, or memory disabled).
+    prior_runs: list[PriorRunSummary] = field(default_factory=list)
 
 
 @dataclass

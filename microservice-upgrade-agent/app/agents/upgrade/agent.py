@@ -1,7 +1,7 @@
 """MicroserviceUpgradeAgent: upgrades a Java/Spring microservice (Java 8->21,
 Spring Framework 4->6, Spring Boot 1.5->3.5 by default) given a path to its
-code. Unlike the translation agent's evaluator-optimizer pattern (an LLM
-judges another LLM's output), this agent's "evaluator" is a deterministic
+code. Rather than an evaluator-optimizer pattern (an LLM judging another
+LLM's output), this agent's "evaluator" is a deterministic
 build + startup check (verifier.py) -- the only trustworthy signal that an
 upgrade actually works is whether the service builds and starts, not a
 model's opinion of its own diff. The loop is:
@@ -116,8 +116,17 @@ class MicroserviceUpgradeAgent(BaseAgent):
             target_spring_boot_version=input_data.target_spring_boot_version,
         )
         messages: list[dict] = [
-            {"role": "user", "content": build_kickoff_message(repo_root=str(repo_root))}
+            {
+                "role": "user",
+                "content": build_kickoff_message(
+                    repo_root=str(repo_root), prior_runs=input_data.prior_runs
+                ),
+            }
         ]
+
+        # Which earlier runs were shown to the model, so a run's output records
+        # what memory it started from.
+        prior_run_ids = [r.run_id for r in input_data.prior_runs]
 
         trace = UpgradeTrace()
         blocked_summary: str | None = None
@@ -148,6 +157,7 @@ class MicroserviceUpgradeAgent(BaseAgent):
                             "cycles_used": cycle,
                             "build_tool": build_tool,
                             "summary": verification.summary,
+                            "prior_run_ids": prior_run_ids,
                         },
                         trace=self._serialize_trace(trace),
                     )
@@ -176,6 +186,7 @@ class MicroserviceUpgradeAgent(BaseAgent):
                 "cycles_used": len(trace.verifications),
                 "build_tool": build_tool,
                 "summary": final_summary,
+                "prior_run_ids": prior_run_ids,
             },
             trace=self._serialize_trace(trace),
         )

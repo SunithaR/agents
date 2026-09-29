@@ -1,3 +1,5 @@
+from app.agents.upgrade.schemas import PriorRunSummary
+
 SYSTEM_PROMPT_TEMPLATE = """You are an expert Java/Spring upgrade engineer. You have tools to read, \
 write, and edit files in a microservice repository, run allowlisted build/inspection commands \
 (Maven/Gradle wrapper, java, git, basic Unix utilities), and signal when you're ready for \
@@ -43,13 +45,45 @@ def build_system_prompt(
     )
 
 
-def build_kickoff_message(*, repo_root: str) -> str:
+def _format_prior_run(run: PriorRunSummary) -> str:
+    outcome = "APPROVED" if run.approved else "NOT approved"
+    lines = [
+        f"- Run #{run.run_id} ({run.created_at}; targets Java {run.target_java_version} / "
+        f"Spring Framework {run.target_spring_framework_version} / Spring Boot "
+        f"{run.target_spring_boot_version}): {outcome} after {run.cycles_used} verification "
+        f"cycle(s).",
+        f"  Outcome: {run.summary}",
+    ]
+    if run.last_failure:
+        lines.append(f"  Last verification failure (tail):\n```\n{run.last_failure}\n```")
+    return "\n".join(lines)
+
+
+def build_prior_runs_section(prior_runs: list[PriorRunSummary]) -> str:
+    if not prior_runs:
+        return ""
+    body = "\n".join(_format_prior_run(r) for r in prior_runs)
     return (
+        "Memory from previous upgrade attempts on this repository (most recent first):\n"
+        f"{body}\n\n"
+        "Treat this as hints, not facts: the files on disk are the source of truth, and an "
+        "earlier run may have left partial edits in place, so re-inspect before assuming "
+        "anything. Use it to avoid repeating approaches that already failed and to go "
+        "straight at problems earlier runs got stuck on."
+    )
+
+
+def build_kickoff_message(*, repo_root: str, prior_runs: list[PriorRunSummary] | None = None) -> str:
+    message = (
         f"Repository root (all your tool paths are relative to this, or must resolve inside it): "
         f"{repo_root}\n\n"
         "Start by listing the repository root and reading the build file to understand the "
         "current state."
     )
+    memory = build_prior_runs_section(prior_runs or [])
+    if memory:
+        message += "\n\n" + memory
+    return message
 
 
 def build_verification_feedback_message(*, cycle: int, summary: str) -> str:

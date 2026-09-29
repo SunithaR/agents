@@ -16,7 +16,7 @@ codebase needs to change to support it.
 
 What this module *does* do is answer "which of those will fire?" so we can
 log something useful at startup and expose it via GET /health/llm, instead
-of a developer discovering a missing credential only when a translation
+of a developer discovering a missing credential only when an upgrade
 request fails.
 """
 from __future__ import annotations

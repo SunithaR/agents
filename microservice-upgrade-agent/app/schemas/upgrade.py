@@ -12,6 +12,10 @@ class UpgradeRequest(BaseModel):
     max_tool_turns_per_cycle: int | None = Field(default=None, ge=1, le=100)
     build_timeout_seconds: int | None = Field(default=None, ge=30, le=3600)
     startup_timeout_seconds: int | None = Field(default=None, ge=10, le=600)
+    use_memory: bool = Field(
+        default=True,
+        description="Show the agent summaries of earlier runs against the same repo_path",
+    )
 
 
 class UpgradeResponse(BaseModel):
