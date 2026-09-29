@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN"
+        "http://www.springframework.org/dtd/spring-beans.dtd">
+
+<beans>
+
+    <bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+        <property name="driverClassName" value="org.h2.Driver"/>
+        <property name="url" value="jdbc:h2:mem:legacy_demo;DB_CLOSE_DELAY=-1;MODE=LEGACY"/>
+        <property name="username" value="sa"/>
+        <property name="password" value=""/>
+        <property name="initialSize" value="1"/>
+        <property name="maxActive" value="5"/>
+    </bean>
+
+    <bean id="sessionFactory" class="com.example.legacy.config.HibernateSessionFactoryBean">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+
+    <bean id="customerDao" class="com.example.legacy.dao.HibernateCustomerDao">
+        <property name="sessionFactory" ref="sessionFactory"/>
+    </bean>
+
+    <bean id="customerService" class="com.example.legacy.service.CustomerService">
+        <property name="customerDao" ref="customerDao"/>
+    </bean>
+
+</beans>

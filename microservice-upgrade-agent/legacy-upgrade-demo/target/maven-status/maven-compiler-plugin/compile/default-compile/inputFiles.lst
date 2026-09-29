@@ -1,0 +1,6 @@
+/Users/sunitharajarathnam/projects/microservice-upgrade-agent/legacy-upgrade-demo/src/main/java/com/example/legacy/service/CustomerService.java
+/Users/sunitharajarathnam/projects/microservice-upgrade-agent/legacy-upgrade-demo/src/main/java/com/example/legacy/config/HibernateSessionFactoryBean.java
+/Users/sunitharajarathnam/projects/microservice-upgrade-agent/legacy-upgrade-demo/src/main/java/com/example/legacy/dao/CustomerDao.java
+/Users/sunitharajarathnam/projects/microservice-upgrade-agent/legacy-upgrade-demo/src/main/java/com/example/legacy/model/Customer.java
+/Users/sunitharajarathnam/projects/microservice-upgrade-agent/legacy-upgrade-demo/src/main/java/com/example/legacy/LegacyApplication.java
+/Users/sunitharajarathnam/projects/microservice-upgrade-agent/legacy-upgrade-demo/src/main/java/com/example/legacy/dao/HibernateCustomerDao.java
