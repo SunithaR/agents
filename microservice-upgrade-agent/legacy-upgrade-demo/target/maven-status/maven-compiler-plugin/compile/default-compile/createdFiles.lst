@@ -1,6 +1,0 @@
-com/example/legacy/service/CustomerService.class
-com/example/legacy/dao/CustomerDao.class
-com/example/legacy/dao/HibernateCustomerDao.class
-com/example/legacy/config/HibernateSessionFactoryBean.class
-com/example/legacy/model/Customer.class
-com/example/legacy/LegacyApplication.class
